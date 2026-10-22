@@ -94,6 +94,7 @@ var STR_EN = {
     "hex": "HEX", "options": "Opt.",
     "flash": "Flash", "cancel": "Stop", "log": "Log",
     "refreshTooltip": "Rescan available serial ports",
+    "refresh": "Refresh",
     "logTooltip": "Show/hide avrdude output log",
     "optionsTooltip": "Additional avrdude options, space separated (e.g. -D or -V)",
     "noPort": "Select a serial port",
@@ -140,6 +141,7 @@ var STR_RU = {
     "hex": "HEX", "options": "Опции",
     "flash": "Прошить", "cancel": "Стоп", "log": "Лог",
     "refreshTooltip": "Обновить список портов",
+    "refresh": "Обновить",
     "logTooltip": "Показать/скрыть журнал avrdude",
     "optionsTooltip": "Дополнительные опции avrdude через пробел (например -D или -V)",
     "noPort": "Выберите последовательный порт",
@@ -351,6 +353,7 @@ function localizePanel()
     uiPanel.lblHex.text = T("hex") + ":";
     uiPanel.lblOptions.text = T("options") + ":";
     uiPanel.btnRefresh.toolTip = T("refreshTooltip");
+    uiPanel.btnRefresh.text = T("refresh");
     uiPanel.btnBrowse.toolTip = T("selectHex");
     uiPanel.cmdFlash.text = T("flash");
     uiPanel.cmdCancel.text = T("cancel");

@@ -87,7 +87,7 @@
         <widget class="QToolButton" name="btnRefresh">
          <property name="minimumSize">
           <size>
-           <width>22</width>
+           <width>70</width>
            <height>18</height>
           </size>
          </property>
@@ -101,7 +101,7 @@
           <string>Rescan available serial ports</string>
          </property>
          <property name="text">
-          <string>R</string>
+          <string>Refresh</string>
          </property>
         </widget>
        </item>
