@@ -236,28 +236,15 @@
       <widget class="QPushButton" name="cmdFlash">
        <property name="minimumSize">
         <size>
-         <width>60</width>
+         <width>70</width>
          <height>0</height>
         </size>
+       </property>
+       <property name="toolTip">
+        <string>Flash the firmware. While flashing, this button turns into Stop.</string>
        </property>
        <property name="text">
         <string>Flash</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="cmdCancel">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="minimumSize">
-        <size>
-         <width>50</width>
-         <height>0</height>
-        </size>
-       </property>
-       <property name="text">
-        <string>Cancel</string>
        </property>
       </widget>
      </item>

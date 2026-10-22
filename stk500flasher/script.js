@@ -10,6 +10,10 @@
 //     Arduino IDE, PlatformIO, system PATH
 //   - Windows avrdude 8.0 can be bundled in the "avrdude" subfolder
 //
+// v2.3: single dual-action button - "Flash" when idle, "Stop" while
+// flashing. The former separate Flash/Stop buttons are merged into one
+// (cmdFlash); the button is never disabled, it switches its label/tooltip.
+//
 // v2 fixes (binding compatibility with Candle's QtScript engine):
 //   - never call QPushButton.setText()/setToolTip()/QComboBox.setEditable():
 //     these methods are missing in the script bindings -> use property
@@ -93,6 +97,8 @@ var STR_EN = {
     "port": "Port", "baud": "Baud", "mcu": "MCU",
     "hex": "HEX", "options": "Opt.",
     "flash": "Flash", "cancel": "Stop", "log": "Log",
+    "flashTooltip": "Flash the firmware onto the board. While flashing, this button turns into Stop.",
+    "stopTooltip": "Stop the running flashing process",
     "refreshTooltip": "Rescan available serial ports",
     "refresh": "Refresh",
     "logTooltip": "Show/hide avrdude output log",
@@ -140,6 +146,8 @@ var STR_RU = {
     "port": "Порт", "baud": "Бод", "mcu": "МК",
     "hex": "HEX", "options": "Опции",
     "flash": "Прошить", "cancel": "Стоп", "log": "Лог",
+    "flashTooltip": "Записать прошивку на плату. Во время прошивки кнопка превращается в «Стоп».",
+    "stopTooltip": "Остановить текущую прошивку",
     "refreshTooltip": "Обновить список портов",
     "refresh": "Обновить",
     "logTooltip": "Показать/скрыть журнал avrdude",
@@ -323,8 +331,9 @@ function setupPanel()
     // Signals
     uiPanel.btnRefresh.clicked.connect(function () { refreshPorts(false); });
     uiPanel.btnBrowse.clicked.connect(onBrowse);
-    uiPanel.cmdFlash.clicked.connect(onFlash);
-    uiPanel.cmdCancel.clicked.connect(onCancel);
+    // v2.3: single dual-action button - starts flashing when idle,
+    // stops the running avrdude process while flashing.
+    uiPanel.cmdFlash.clicked.connect(onFlashStop);
     uiPanel.txtHex.textChanged.connect(updateHexInfo);
     // NOTE: QComboBox::currentIndexChanged is overloaded (int)/(QString),
     // a plain connect() throws "ambiguous connect" - select by signature.
@@ -356,7 +365,7 @@ function localizePanel()
     uiPanel.btnRefresh.text = T("refresh");
     uiPanel.btnBrowse.toolTip = T("selectHex");
     uiPanel.cmdFlash.text = T("flash");
-    uiPanel.cmdCancel.text = T("cancel");
+    uiPanel.cmdFlash.toolTip = T("flashTooltip");
     uiPanel.btnLog.text = T("log");
     uiPanel.btnLog.toolTip = T("logTooltip");
     uiPanel.lblOptions.toolTip = T("optionsTooltip");
@@ -611,6 +620,18 @@ function detectAvrdude(logIt)
 }
 
 // ------------------------------------------------------------------ flash
+
+// v2.3: dual-action handler for the single button - Flash <-> Stop.
+// Idle: starts flashing; while avrdude is running: stops (kills) it.
+function onFlashStop()
+{
+    if (!uiPanel) return;
+    if (procRunning) {
+        onCancel();
+    } else {
+        onFlash();
+    }
+}
 
 function onBrowse()
 {
@@ -898,8 +919,11 @@ function cleanupTimers()
 
 function setBusy(busy)
 {
-    uiPanel.cmdFlash.setEnabled(!busy);
-    uiPanel.cmdCancel.setEnabled(busy);
+    // v2.3: the single action button is NEVER disabled - it switches its
+    // label and tooltip between "Flash" (idle) and "Stop" (flashing), so
+    // the same click that started flashing can also abort it.
+    uiPanel.cmdFlash.text = busy ? T("cancel") : T("flash");
+    uiPanel.cmdFlash.toolTip = busy ? T("stopTooltip") : T("flashTooltip");
     uiPanel.cmbPort.setEnabled(!busy);
     uiPanel.cmbBaud.setEnabled(!busy);
     uiPanel.cmbMcu.setEnabled(!busy);
