@@ -11,7 +11,8 @@
 Flash GRBL — or any AVR/Arduino firmware — onto your CNC board
 **without leaving Candle**: no Arduino IDE, no XLoader, no command line.
 
-![STK500 Flasher panel after a successful flash](docs/screenshot.png)
+<img width="227" height="270" alt="{224DECE3-6A34-4A53-B6F3-9B7F116C6422}" src="https://github.com/user-attachments/assets/7510bf0d-361c-4064-8abb-44f91c49e612" />
+
 
 *The plugin panel in Candle's user-panel area after a successful flash
 (English UI; the plugin follows Candle's language — Russian is also built in,
