@@ -2,9 +2,10 @@
 // Panel for flashing AVR/Arduino control boards (GRBL etc.) over the
 // Arduino STK500 v1 protocol (Optiboot), exactly like the Arduino IDE does.
 //
-// Flash engine: avrdude. The programmer type is FIXED (v2.2): -c stk500v1,
-// i.e. the Arduino STK500 v1 protocol via the board's own USB-UART
-// bootloader - there is no programmer selection in the UI anymore.
+// Flash engine: avrdude. The programmer type is FIXED (v2.2): -c arduino,
+// i.e. the STK500 v1 protocol through the board's own USB-UART bootloader
+// with DTR auto-reset - the exact combination the Arduino IDE uses
+// ("arduino" == STK500 v1 + auto-reset in avrdude).
 //   - avrdude path can be selected in the plugin settings page
 //   - auto-search: plugin folder (avrdude subfolder), app folder,
 //     Arduino IDE, PlatformIO, system PATH
@@ -71,10 +72,14 @@ var MCU_FLASH = {
 // v2.2: the programmer type is not selectable anymore - STK500 v1 only.
 // (Other avrdude programmer types are external hardware programmers,
 //  useless when flashing through the board's own serial port.)
-var PROGRAMMER = "stk500v1";
+// "arduino" in avrdude IS STK500 v1 plus the DTR auto-reset pulse -
+// exactly what the Arduino IDE passes, so it is used here.
+var PROGRAMMER = "arduino";
 
 var lastParsedPath = "";
 var lastParsedInfo = null;
+var lastParsedKey = "";
+var procPhase = "";
 
 // QByteArray -> String converter (utf-8).
 // NOTE: String(QByteArray) in Candle's QtScript returns the literal class
@@ -192,7 +197,10 @@ var STR_RU = {
 };
 
 var RU = false;
-try { RU = (sstr(app.settings.language) == "ru"); } catch (e) {}
+try {
+    var lang = sstr(app.settings.language).toLowerCase();
+    RU = (lang == "ru" || lang.indexOf("ru_") === 0 || lang.indexOf("ru-") === 0);
+} catch (e) {}
 
 function T(key)
 {
@@ -224,6 +232,15 @@ function fileExists(path)
 {
     try { return (new QFile(path)).exists(); } catch (e) { return false; }
 }
+function fileKey(path)
+{
+    try {
+        var fi = new QFileInfo(path);
+        return path + "|" + sstr(fi.lastModified()) + "|" + sstr(fi.size());
+    } catch (e) {
+        return path;
+    }
+}
 
 function readFileText(path)
 {
@@ -242,7 +259,9 @@ try {
     var _env = QProcess.systemEnvironment().join(" ");
     WIN = (_env.indexOf("SystemRoot=") >= 0 || _env.indexOf("OS=Windows_NT") >= 0);
 } catch (e) {}
-
+if (!WIN) {
+    try { WIN = fileExists("C:/Windows") || fileExists("C:/winnt"); } catch (e) {}
+}
 function envVar(name)
 {
     try {
@@ -286,6 +305,7 @@ function createPanelWidget()
 
 function createWindowWidget()
 {
+    return null;
 }
 
 function createSettingsWidget()
@@ -339,6 +359,7 @@ function setupPanel()
     // a plain connect() throws "ambiguous connect" - select by signature.
     uiPanel.cmbMcu["currentIndexChanged(int)"].connect(function () {
         lastParsedPath = "";
+        lastParsedKey = "";
         updateHexInfo();
     });
 
@@ -448,6 +469,7 @@ function parseHex(path)
 {
     var text = readFileText(path);
     if (text === null) return { error: "read" };
+    if (text.length > 0 && text.charCodeAt(0) == 0xFEFF) text = text.substring(1);
 
     var lines = text.split("\n");
     var base = 0;
@@ -492,8 +514,10 @@ function parseHex(path)
         } else if (type == 1) {
             break;
         } else if (type == 2) {
+            if (len != 2) return { error: "format" };
             base = (bytes[4] * 256 + bytes[5]) * 16;
         } else if (type == 4) {
+            if (len != 2) return { error: "format" };
             base = (bytes[4] * 256 + bytes[5]) * 65536;
         }
         // type 5 (start address) and others are ignored
@@ -516,7 +540,9 @@ function updateHexInfo()
     if (!uiPanel) return;
 
     var path = trimStr(sstr(uiPanel.txtHex.text));
-    if (path == lastParsedPath) return;
+    var key = fileKey(path);
+    if (key == lastParsedKey) return;
+    lastParsedKey = key;
     lastParsedPath = path;
     lastParsedInfo = null;
 
@@ -562,6 +588,12 @@ function findConfFor(exePath)
         var candidates = [dir + "/avrdude.conf",
                           dir + "/../etc/avrdude.conf",
                           dir + "/etc/avrdude.conf"];
+        if (!WIN) {
+            candidates.push("/etc/avrdude.conf");
+            candidates.push("/usr/local/etc/avrdude.conf");
+            candidates.push("/opt/homebrew/etc/avrdude.conf");
+            candidates.push("/opt/local/etc/avrdude.conf");
+        }
         for (var i = 0; i < candidates.length; i++) {
             if (fileExists(candidates[i])) return candidates[i];
         }
@@ -616,7 +648,13 @@ function detectAvrdude(logIt)
     }
 
     // 5. PATH
-    return { exe: "avrdude", conf: null };
+        try {
+        if (typeof QStandardPaths != "undefined") {
+            var found = sstr(QStandardPaths.findExecutable("avrdude"));
+            if (found.length > 0) return { exe: found, conf: findConfFor(found), fromPath: true };
+        }
+    } catch (e) {}
+    return { exe: "avrdude", conf: null, fromPath: true };
 }
 
 // ------------------------------------------------------------------ flash
@@ -698,7 +736,7 @@ function onFlash()
     var b = parseInt(baud, 10);
     if (!isNaN(b) && b > 0) { args.push("-b"); args.push(String(b)); }
     args.push("-p"); args.push(mcu);
-    args.push("-U"); args.push("flash:w:" + hex + ":i");
+    args.push("-U"); args.push("flash:w:" + hex + ":a");
     args.push("-v");
     if (extra.length > 0) {
         var parts = extra.split(/\s+/);
@@ -730,6 +768,7 @@ function onFlash()
     procBuffer = "";
     procOutAll = "";
     procCanceled = false;
+    procPhase = "";
 
     proc.readyReadStandardOutput.connect(onProcReadyReadStdout);
     proc.readyReadStandardError.connect(onProcReadyReadStderr);
@@ -737,7 +776,11 @@ function onFlash()
     // - a plain connect() throws "ambiguous connect" in Candle's QtScript,
     // so the exact signature must be selected by name.
     proc["finished(int)"].connect(onProcFinished);
-    try { proc.error.connect(onProcError); } catch (e) {}
+        var errorConnected = false;
+    try { proc.errorOccurred.connect(onProcError); errorConnected = true; } catch (e) {}
+    if (!errorConnected) {
+        try { proc.error.connect(onProcError); } catch (e) {}
+    }
 
     proc.start(avr.exe, args);
 
@@ -750,9 +793,15 @@ function onFlash()
     startCheckTimer = new QTimer();
     startCheckTimer.singleShot = true;
     startCheckTimer.timeout.connect(function () {
-        if (procRunning && proc && sstr(proc.state()).indexOf("NotRunning") == 0) {
-            onProcFailedToStart();
-        }
+        if (!procRunning || !proc) return;
+        var notRunning = false;
+        try {
+            var st = proc.state();
+            var stNum = Number(st);
+            var stStr = sstr(st);
+            notRunning = (stNum === 0) || (stStr == "0") || (stStr.indexOf("NotRunning") === 0);
+        } catch (e) {}
+        if (notRunning) onProcFailedToStart();
     });
     startCheckTimer.start(800);
 
@@ -770,9 +819,11 @@ function onFlash()
 
 function onCancel()
 {
-    if (!procRunning || !proc) return;
+    if (!procRunning || !proc || procCanceled) return;
     procCanceled = true;
     appendLog(T("canceling"));
+    try { proc.terminate(); } catch (e) {}
+    try { proc.kill(); } catch (e) {}
     try {
         var pid = Number(proc.processId());
         if (pid > 0) {
@@ -827,23 +878,40 @@ function feedOutput(chunk)
     procBuffer += chunk;
     procOutAll += chunk;
 
+    if (watchdogTimer) {
+        try { watchdogTimer.start(600000); } catch (e) {}
+    }
+
+    if (procOutAll.indexOf("Reading |") >= 0) {
+        procPhase = "verify";
+    } else if (procOutAll.indexOf("Writing |") >= 0) {
+        procPhase = "write";
+    }
+
     // Progress: latest "NN%" in the buffer, mapped to write/verify phase
-    var wIdx = procBuffer.lastIndexOf("Writing |");
-    var rIdx = procBuffer.lastIndexOf("Reading |");
     var pct = lastPercent(procBuffer);
     if (pct >= 0) {
         var base = 0;
         var range = 5;
-        if (wIdx >= 0 && rIdx > wIdx) { base = 65; range = 35; }   // verify read
-        else if (wIdx >= 0) { base = 5; range = 60; }              // writing
+        if (procPhase == "verify") { base = 65; range = 35; }      // verify read
+        else if (procPhase == "write") { base = 5; range = 60; }   // writing
         setProgress(base + Math.round(pct * range / 100));
     }
 
-    // Complete lines to the log
+    // Keep the un-logged progress buffer from growing without bound
+    if (procBuffer.length > 8192 && procBuffer.indexOf("\n") < 0) {
+        procBuffer = procBuffer.substring(procBuffer.length - 4096);
+    }
+
+    // Complete lines to the log. avrdude redraws its progress line with \r
+    // ("Writing | ### | 25%|\rWriting | ... | 50%|\r...") - keep only the
+    // last snapshot of every \n-terminated line, like a terminal shows it.
     var idx;
     while ((idx = procBuffer.indexOf("\n")) >= 0) {
         var line = procBuffer.substring(0, idx);
         procBuffer = procBuffer.substring(idx + 1);
+        var rIdx = line.lastIndexOf("\r");
+        if (rIdx >= 0) line = line.substring(rIdx + 1);
         line = line.replace(/\r/g, "");
         if (trimStr(line).length > 0) appendLog(line);
     }
@@ -856,23 +924,25 @@ function onProcFinished(exitCode)
     procRunning = false;
     cleanupTimers();
 
-    // Flush the remaining buffer
+    // Flush the remaining buffer (same \r handling as feedOutput)
     if (procBuffer.length > 0) {
         var tail = procBuffer.replace(/\r/g, "");
+        var rIdx = tail.lastIndexOf("\n");
+        if (rIdx >= 0) tail = tail.substring(rIdx + 1);
         if (trimStr(tail).length > 0) appendLog(tail);
         procBuffer = "";
     }
 
     setBusy(false);
 
-    if (procCanceled) {
-        setStatus(T("canceled"), true);
-        appendLog(T("canceled"));
-    } else if (Number(exitCode) == 0) {
+    if (Number(exitCode) == 0) {
         setProgress(100);
         setStatus(T("done"), false);
         appendLog(T("doneMsg"));
         appendLog(T("reconnectHint"));
+    } else if (procCanceled) {
+        setStatus(T("canceled"), true);
+        appendLog(T("canceled"));
     } else {
         setStatus(T("failed") + " (exit " + Number(exitCode) + ")", true);
         setLogVisible(true);
@@ -946,7 +1016,7 @@ function setLogVisible(v)
 
 function appendLog(line)
 {
-    uiPanel.txtLog.appendPlainText(sstr(line));
+    if (uiPanel && uiPanel.txtLog) uiPanel.txtLog.appendPlainText(sstr(line));
 }
 
 function setProgress(v)
@@ -954,7 +1024,7 @@ function setProgress(v)
     var val = v;
     if (val < 0) val = 0;
     if (val > 100) val = 100;
-    uiPanel.prgFlash.setValue(val);
+    if (uiPanel && uiPanel.prgFlash) uiPanel.prgFlash.setValue(val);
 }
 
 // ------------------------------------------------------------------ settings
@@ -967,7 +1037,9 @@ function setupSettings()
     // settings dialog is about to open)
     try {
         var avr = detectAvrdude(false);
-        uiSettings.lblDetected.text = (avr && avr.exe ? avr.exe : T("none"));
+        var label = (avr && avr.exe ? avr.exe : T("none"));
+        if (avr && avr.fromPath && avr.exe == "avrdude") label += " (PATH)";
+        uiSettings.lblDetected.text = label;
     } catch (e) {}
 
     uiSettings.btnAvrdudeBrowse.clicked.connect(function () {
@@ -1000,7 +1072,9 @@ function onSettingsAboutToShow()
     uiSettings.txtAvrdude.setText(sstr(storage.value("avrdudePath", "")));
     uiSettings.txtConf.setText(sstr(storage.value("avrdudeConf", "")));
     var avr = detectAvrdude(false);
-    uiSettings.lblDetected.text = (avr && avr.exe ? avr.exe : T("none"));
+    var label = (avr && avr.exe ? avr.exe : T("none"));
+    if (avr && avr.fromPath && avr.exe == "avrdude") label += " (PATH)";
+    uiSettings.lblDetected.text = label;
 }
 
 function onSettingsAccepted()
@@ -1011,7 +1085,7 @@ function onSettingsAccepted()
     }
 
     // Candle's port may have changed - resync the panel default
-    if (uiPanel) {
+    if (uiPanel && !procRunning) {
         refreshPorts(false);
     }
 }

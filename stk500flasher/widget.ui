@@ -92,17 +92,17 @@
           </size>
          </property>
          <property name="maximumSize">
-          <size>
-           <width>22</width>
-           <height>18</height>
-          </size>
-         </property>
-         <property name="toolTip">
-          <string>Rescan available serial ports</string>
-         </property>
-         <property name="text">
-          <string>Refresh</string>
-         </property>
+           <size>
+            <width>70</width>
+            <height>18</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Rescan available serial ports</string>
+          </property>
+          <property name="text">
+           <string>Refresh</string>
+          </property>
         </widget>
        </item>
       </layout>
