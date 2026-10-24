@@ -1,81 +1,106 @@
-# STK500 Flasher — firmware flasher plugin for Candle
+# STK500 Flasher — board flashing plugin for Candle
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Release v2.2](https://img.shields.io/badge/release-v2.2-brightgreen.svg)](https://github.com/YOUR-USERNAME/candle-plugin-stk500-flasher/releases)
-[![Platform: Windows | Linux](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blueviolet.svg)](#installation)
-[![Requires: Candle 10.9+](https://img.shields.io/badge/requires-Candle%2010.9%2B-orange.svg)](https://github.com/Denvi/Candle)
-[![README по-русски](https://img.shields.io/badge/README-русский-red.svg)](README.ru.md)
+A plugin that adds a panel to Candle for flashing control boards
+(Arduino / AVR, GRBL and compatible) over the **Arduino STK500 v1** protocol
+(Optiboot) — the same way the Arduino IDE does it. The flashing engine is
+**avrdude**; the protocol is fixed: `-c arduino` (STK500 v1 + DTR auto-reset,
+as in the Arduino IDE; the programmer selection was removed from the UI as
+redundant).
 
-**candle-plugin-stk500-flasher** adds a firmware flasher panel to
-[Candle](https://github.com/Denvi/Candle), the GRBL CNC controller.
-Flash GRBL — or any AVR/Arduino firmware — onto your CNC board
-**without leaving Candle**: no Arduino IDE, no XLoader, no command line.
+Tested with Candle 11.x (current master branch). Requires a Candle build
+with JS plugin support (the `candleplugins` folder).
 
-<img width="227" height="270" alt="{224DECE3-6A34-4A53-B6F3-9B7F116C6422}" src="https://github.com/user-attachments/assets/7510bf0d-361c-4064-8abb-44f91c49e612" />
+## Features
 
+- flash AVR/Arduino boards right from Candle — like "Upload" in the Arduino
+  IDE (STK500 v1 + DTR auto-reset), no external programmer needed;
+- a single dual-action **Flash/Stop** button — starts and interrupts flashing
+  without ever getting blocked;
+- the serial port is taken from Candle's connection settings; default baud
+  115200 (the Optiboot standard);
+- MCUs: ATmega328P/328/2560/1280/1284P/644P/168P/168/88/8 (Uno/Nano,
+  Sanguino, Mega…); baud rates: 115200/57600/38400/19200/9600;
+- a live avrdude log (stdout+stderr) that auto-opens on flashing start and
+  on errors, collapsed by default;
+- avrdude auto-search: plugin folder → Candle folder → Arduino IDE →
+  PlatformIO → PATH; on Windows a bundled avrdude 8.0 is supported;
+- a compact ~156×212 px panel — fits into Candle's panel area without
+  scrollbars or clipping.
 
-*The plugin panel in Candle's user-panel area after a successful flash
-(English UI; the plugin follows Candle's language — Russian is also built in,
-see [README.ru.md](README.ru.md)).*
+---
 
-## Why
+## What's new in version 2.3
 
-The usual ritual for updating GRBL firmware: close the port in Candle, open
-the Arduino IDE or XLoader, figure out the right board/programmer settings,
-flash, close it, reopen Candle and reconnect. This plugin collapses all of
-that into one small panel that lives in Candle's side area next to the other
-user panels:
+1. **The "Flash" and "Stop" buttons are merged into one** — a dual-action
+   button: when idle it starts flashing, and while avrdude is running it
+   turns into "Stop" — pressing it again interrupts the process. The button
+   is never disabled, only its label and tooltip change; the panel became
+   even simpler (one button instead of two).
 
-- **The same mechanism as the Arduino IDE "Upload" button** — the Arduino
-  STK500 v1 (Optiboot) protocol through the board's own USB-UART, driven by
-  [avrdude](https://github.com/avrdudes/avrdude).
-- **The programmer type is fixed** (`avrdude -c stk500v1`): there is no
-  programmer list to misconfigure. Boards that don't answer are fixed by
-  picking the right **baud rate**, not by protocol roulette.
-- **Port pre-filled from Candle's own connection settings** and re-synced
-  automatically when you change them in Candle's Settings dialog.
-- **HEX sanity checks before flashing**: file validity, image size vs. MCU
-  flash size, a warning when the image reaches the bootloader area.
-- **Live progress, full log, cancel**: write/verify progress bar, collapsible
-  avrdude output log (auto-opens on errors), a Stop button.
-- **Compact**: the collapsed panel is about 150×210 px and fits Candle's user
-  panel area without scrollbars.
-- **Cross-platform**: Windows and Linux (macOS works too). avrdude is
-  auto-discovered — a copy bundled with the plugin, the Candle app folder,
-  the Arduino IDE, PlatformIO, the system `PATH` — or set your own path in
-  the plugin settings.
-- **Tiny**: the lite build is a 17 KB ZIP with zero dependencies.
+## What's new in version 2.2
 
-## How it works
+1. **The programmer selection was removed from the panel** — the flashing
+   protocol is fixed: STK500 v1 through the board's own USB-UART
+   (`avrdude -c arduino` — the same STK500 v1 with DTR auto-reset the
+   Arduino IDE uses). The list of options (`arduino`/`wiring`/`usbasp`/
+   `usbtinyisp`/`avrisp`…) was redundant: those are external hardware
+   programmers or the STK500 v2 protocol (Mega 2560) — they are not used
+   when flashing through the board's own port. The panel became simpler and
+   slightly narrower.
+2. If a board does not enter the bootloader over STK500 v1 (rare clones),
+   this is fixed by trying a different baud rate, not by choosing a
+   programmer.
 
-Candle 10.9+ loads plugins from the `candleplugins/` folder: each plugin is a
-`config.ini` (metadata) + `script.js` (logic, QtScript) + Qt Designer `.ui`
-forms. The heavy lifting is delegated to avrdude, invoked exactly like the
-Arduino IDE does it:
+## What's new in version 2.1 (compact panel)
 
-```bash
-avrdude -c stk500v1 -P <port> -b <baud> -p <mcu> -U flash:w:<firmware.hex>:i -v
-```
+1. **The panel was shrunk considerably**: a minimum of ~156×212 px instead
+   of ~250×390 — it now reliably fits into Candle's panel area without
+   vertical or horizontal scrollbars and without clipping:
+   - 5 rows instead of 6: baud rate and programmer combined into one row;
+   - short labels (Port / Baud / MCU / HEX / Options);
+   - hard minimum widths on all fields — the panel squeezes down to ~150 px;
+   - **the log is collapsed by default** and expands via the "Log" button
+     (the state is remembered). When flashing starts or an error occurs the
+     log opens automatically; its height is limited to 72 px (with its own
+     scrolling inside), so the panel never "bloats".
 
-Why `-c stk500v1` only? Because everything else in the avrdude programmer
-list is irrelevant when flashing through the board's own serial port:
-`usbasp`/`usbtinyisp`/`avrisp` are *external hardware programmers*, and
-`wiring` is the STK500 v2 flavor used by the Mega 2560 stock bootloader.
-Keeping a programmer dropdown was an invitation to break a working setup, so
-as of v2.2 the protocol is fixed and the panel got simpler and narrower.
+2. Fixed the Russian localization: removed the reference to the deleted
+   programmer label (the panel no longer breaks in the Russian locale).
+
+## What was in version 2.0
+
+1. **The plugin was completely rewritten for the real limitations of
+   Candle's script engine** — all discovered causes of non-working behavior
+   were eliminated:
+   - pressing "Flash" no longer raises the `ambiguous connect` error
+     (the `QProcess::finished` and `currentIndexChanged` signals are
+     connected with an explicit signature);
+   - avrdude output now really reaches the log: `String(QByteArray)` in
+     Candle's engine returns the class name instead of the content — the
+     official pattern `QTextCodec.codecForMib(106).toUnicode(...)` is used;
+   - **both** process streams are read (avrdude writes all progress to
+     stderr);
+   - the Russian localization no longer breaks the panel (property
+     assignment only, no `setText()` on buttons — those methods are missing
+     in the bindings).
+
+2. **The UART port is taken from Candle's settings by default** (and updated
+   when the settings change). The default baud rate is 115200 (the Optiboot /
+   STK500 v1 standard), because Candle's GRBL connection speed has nothing
+   to do with the bootloader speed.
+
+3. **avrdude selection in the plugin settings** (as in the first version):
+   the path to the avrdude binary and (optionally) to avrdude.conf — works
+   on both Linux and Windows. For Windows there is a full (full) archive
+   build with avrdude 8.0 bundled.
+
+---
 
 ## Installation
 
-### From a release ZIP (recommended)
-
-1. Download a ZIP from the
-   [Releases](https://github.com/YOUR-USERNAME/candle-plugin-stk500-flasher/releases)
-   page:
-   - **lite** (17 KB) — plugin files only, uses a system-wide avrdude;
-   - **full** (1 MB) — bundles avrdude 8.0 for Windows x64
-     (`avrdude.exe` + `avrdude.conf`), nothing else to install.
-2. Find your Candle folder (next to `candle.exe` / `candle`) and copy the
-   `stk500flasher` folder into `candleplugins` (create it if needed):
+1. Locate your Candle program folder (next to `candle.exe` / `candle`).
+2. Copy the whole `stk500flasher` folder into `candleplugins`
+   (create it if needed):
 
 ```
 Candle/
@@ -87,126 +112,67 @@ Candle/
         ├── widget.ui
         ├── settings.ui
         ├── README.md
-        └── avrdude/            (full ZIP only, Windows)
+        └── avrdude/            (Windows only)
             ├── avrdude.exe
             ├── avrdude.conf
             └── LICENSE
 ```
 
-3. Restart Candle — the "STK500 Flasher" panel appears in the right-hand
-   user panel area.
-
-### avrdude setup
-
-| OS | lite ZIP | full ZIP |
-|----|----------|----------|
-| **Windows** | install the Arduino IDE, or pick `avrdude.exe` in *Settings → STK500 Flasher* | nothing to do — bundled |
-| **Linux** | `sudo apt install avrdude` (or `dnf` / `pacman` / `zypper`), found in `PATH` automatically | same — the bundled copy is Windows-only |
-| **macOS** | `brew install avrdude` | same |
-
-A custom avrdude and/or `avrdude.conf` can always be selected in
-*Settings → STK500 Flasher*.
-
-### From source
-
-```bash
-git clone https://github.com/YOUR-USERNAME/candle-plugin-stk500-flasher.git
-cp -r candle-plugin-stk500-flasher/stk500flasher <your Candle folder>/candleplugins/
-```
-
-(`scripts/package.sh` rebuilds the distributable ZIPs.)
+3. Restart Candle — an "STK500 Flasher" block appears in the right panel
+   area.
 
 ## Usage
 
-1. **Disconnect Candle from the board** (*Connection → Disconnect*) — the
-   serial port must be free for flashing.
+1. **Disconnect from the board in Candle** (Connection → Disconnect) —
+   otherwise the port will be busy.
 2. In the "STK500 Flasher" panel:
-   - **Port** — pre-filled from Candle's settings; rescan with the `R`
-     button and pick another one if needed;
-   - **Baud** — 115200 for Uno/Nano (Optiboot), 57600/19200 for old boards;
-     the field is editable for exotic values;
-   - **MCU** — the target controller, e.g. `m328p` for Uno/Nano/GRBL;
+   - **Port** — pre-filled from Candle's settings; if necessary refresh the
+     list with the "Refresh" button and pick another one;
+   - **Baud** — 115200 for Uno/Nano (Optiboot), 57600/38400/19200 for older
+     boards (available: 115200/57600/38400/19200/9600). Flashing always goes
+     over STK500 v1 — like "Upload" in the Arduino IDE; the programmer is
+     fixed and not selectable;
+   - **MCU** — ATmega328P for Uno/Nano/GRBL, ATmega1284P for Sanguino
+     (ATmega2560 for Mega — only if the board runs Optiboot); in the list:
+     328P, 328, 2560, 1280, 1284P, 644P, 168P, 168, 88, 8;
    - **HEX** — the firmware file (Intel HEX), e.g. `grbl.hex`;
-   - **Opt.** — extra avrdude options, space-separated (`-D` don't erase the
-     whole chip, `-V` don't verify, `-F` ignore signature — with care).
-3. Press **Flash**. The progress bar tracks write/verify, the detailed
-   avrdude output goes to the log (button **Log**, opens automatically on
-   flashing and errors), and the status line ends with
-   *"Done! Firmware flashed successfully"* — or a human-readable hint about
-   what went wrong.
-4. If your board doesn't auto-reset into the bootloader, press **RESET** on
-   the board right after clicking Flash.
-5. Reconnect Candle to the board — done.
+   - **Options** — extra avrdude parameters (`-D` don't erase the chip,
+     `-V` don't verify, `-F` ignore the signature — use with care).
+3. Press **"Flash"**. Write/verify progress is shown in the indicator, the
+   detailed avrdude output — in the log (the "Log" button; it opens
+   automatically during flashing). At the end — "Done!" or an error
+   description. While flashing is running the button turns into
+   **"Stop"** — press it again to interrupt the process.
+4. If the board does not enter the bootloader automatically — press
+   **RESET** on the board right after pressing "Flash".
 
-### Supported MCUs
+## avrdude configuration (Settings → STK500 Flasher)
 
-| MCU (`-p`) | Typical boards | Flash |
-|------------|----------------|-------|
-| `m328p` | Uno, Nano, most GRBL boards | 32 KB |
-| `m328` | Uno/Nano clones with ATmega328 | 32 KB |
-| `m2560` | Mega 2560 — **only with Optiboot on board** (see FAQ) | 256 KB |
-| `m1284p` | Sanguino / RepRap boards | 128 KB |
-| `m644p` | Sanguino variants | 64 KB |
-| `m168p` / `m168` / `m88` / `m8` | legacy Arduino | 16/16/8/8 KB |
+- **avrdude binary** — the path to avrdude. Empty = auto-search:
+  1) the plugin folder (`avrdude/avrdude.exe`, Windows);
+  2) the Candle program folder;
+  3) Arduino IDE (Program Files / LOCALAPPDATA);
+  4) PlatformIO (`~/.platformio/packages/tool-avrdude/bin`);
+  5) the system PATH.
+- **avrdude.conf (optional)** — your own config; empty = taken next to
+  avrdude (`avrdude.conf`, `../etc/avrdude.conf`, `etc/avrdude.conf`).
 
-### Compared to the alternatives
+**Linux:** `sudo apt install avrdude` (or `pacman -S avrdude`,
+`dnf install avrdude`) — it will be found in `/usr/bin/avrdude`, or point to
+your own binary in the settings. **macOS:** `brew install avrdude`.
 
-| | this plugin | XLoader | Arduino IDE | avrdude CLI |
-|---|---|---|---|---|
-| Lives inside Candle | ✅ | ❌ separate app | ❌ ~1 GB IDE | ❌ terminal |
-| Protocol choice | fixed STK500 v1, nothing to mispick | fixed per board | per-board | manual `-c` |
-| Progress / log / cancel | ✅ / ✅ / ✅ | progress only | ✅ / ✅ / ❌ | raw stderr |
-| HEX pre-checks (size, bootloader area) | ✅ | ❌ | ✅ | ❌ |
-| Port from Candle settings | ✅ | manual | manual | manual |
-| RU + EN UI | ✅ | EN only | many | — |
+## Limitations
 
-## Troubleshooting / FAQ
+- Flashing goes through avrdude — the same mechanism the Arduino IDE uses
+  (STK500 v1 + DTR auto-reset).
+- Close Candle's connection to the port before flashing.
+- The board must have a bootloader (Optiboot etc.). "Clean" chips without a
+  bootloader can only be flashed with an external programmer (`usbasp`…).
+- A Mega 2560 with its stock bootloader speaks the STK500 v2 protocol (the
+  "wiring" variant) and does not answer v1 — flash it with an external
+  programmer or flash Optiboot first.
 
-**"not in sync" / `stk500_getsync() attempts: -1`** — the bootloader didn't
-answer. Checklist: (1) Candle is disconnected from the port; (2) the baud
-rate matches your bootloader (115200 for Optiboot, 57600/19200 for old
-boards); (3) the board is actually in its bootloader — press RESET on the
-board right after clicking Flash if auto-reset (DTR) doesn't work; (4) try
-another USB cable — thin charge-only cables drop data lines.
+## License
 
-**"Device signature mismatch"** — the selected MCU doesn't match the chip.
-Fix the MCU field; forcing with `-F` in the options field writes to the
-wrong chip layout and can brick it.
-
-**"Port is busy / access denied"** — the port is held by Candle or another
-program: *Connection → Disconnect* first. On Linux, add yourself to the
-`dialout` group (`sudo usermod -aG dialout $USER`, re-login) if the error
-persists.
-
-**Does it work with Mega 2560?** The Mega 2560 **stock** bootloader speaks
-STK500 **v2** (the "wiring" flavor), so it does not answer STK500 v1 — this
-plugin deliberately supports v1 only. Flash such boards with an external
-programmer, or burn Optiboot onto them once — after that the plugin works
-with `m2560` normally.
-
-**"avrdude not found"** — install it (see the table above) or point the
-plugin to your binary in *Settings → STK500 Flasher*. The detected path is
-shown right in the settings page.
-
-**Is this the same as the Arduino IDE upload?** Yes — the same avrdude
-STK500 v1 session over the same USB-UART with the same DTR auto-reset, so
-anything the IDE can flash through the serial port, this panel can too.
-
-## Development
-
-The plugin is plain QtScript + Qt Designer forms — no compilation. It was
-verified end-to-end against Candle built from sources (offscreen platform)
-with a mock avrdude that mimics the real stderr progress output; the harness
-lives in [`tests/`](tests/README.md). Known quirks of Candle's QtScript
-bindings are documented inline in `script.js` (ambiguous signal overloads,
-`String(QByteArray)`, missing setter methods, no `QProcess.MergedChannels`).
-
-## License & credits
-
-- This plugin: **GPL-3.0** (same license as Candle) — see [LICENSE](LICENSE).
-- [Candle](https://github.com/Denvi/Candle) — the GRBL controller this plugin
-  extends.
-- [avrdude](https://github.com/avrdudes/avrdude) — Brian Dean, Joerg Wunsch
-  and the avrdudes project (GPLv2); the full ZIP bundles avrdude 8.0
-  Windows x64 binaries.
-- STK500 v1 / Optiboot protocol as implemented by the Arduino IDE.
+GPL-3.0, same as Candle itself. Bundled: avrdude 8.0 (Windows x64, GPLv2,
+Brian Dean / Joerg Wunsch).
