@@ -11,6 +11,9 @@
 //     Arduino IDE, PlatformIO, system PATH
 //   - Windows avrdude 8.0 can be bundled in the "avrdude" subfolder
 //
+// v2.5: stricter Intel HEX EOF/type validation, MCU Flash-size-only bounds,
+// and graceful cancellation before force-killing avrdude.
+//
 // v2.4 (unified localization - the official Candle mechanism):
 //   - the custom STR_EN/STR_RU dictionaries + RU flag + T() + the runtime
 //     localizePanel()/localizeSettings() rewrites are GONE.
@@ -87,6 +90,8 @@ var procBuffer = "";
 var procOutAll = "";
 var startCheckTimer = null;
 var watchdogTimer = null;
+var cancelKillTimer = null;
+var cancelFallbackTimer = null;
 
 var MCUS = [
     ["m328p", "ATmega328P (Uno/Nano)"],
@@ -383,22 +388,24 @@ function parseHex(path)
     var minAddr = -1;
     var maxAddr = -1;
     var count = 0;
+    var eofSeen = false;
 
     for (var li = 0; li < lines.length; li++) {
-        var line = lines[li];
-        line = line.replace(/\r/g, "");
+        var line = lines[li].replace(/\r/g, "");
         line = line.replace(/^\s+/, "").replace(/\s+$/, "");
         if (line.length == 0) continue;
-
+        if (eofSeen) return { error: "format" };
         if (line.charAt(0) != ":") return { error: "format" };
 
-        var n = (line.length - 1) / 2;
-        if (Math.floor(n) != n) return { error: "format" };
+        var payload = line.substring(1);
+        if (payload.length < 10 || (payload.length % 2) != 0 || !/^[0-9a-fA-F]+$/.test(payload)) {
+            return { error: "format" };
+        }
 
         var bytes = [];
         var sum = 0;
-        for (var i = 0; i < n; i++) {
-            var b = parseInt(line.substr(1 + i * 2, 2), 16);
+        for (var i = 0; i < payload.length; i += 2) {
+            var b = parseInt(payload.substr(i, 2), 16);
             if (isNaN(b)) return { error: "format" };
             bytes.push(b);
             sum += b;
@@ -411,26 +418,36 @@ function parseHex(path)
         var addr = bytes[1] * 256 + bytes[2];
         var type = bytes[3];
 
-        if (type == 0) {
-            for (var i = 0; i < len; i++) {
-                var a = base + addr + i;
+        if (type == 0x00) {
+            for (var di = 0; di < len; di++) {
+                var a = base + addr + di;
+                if (a < 0 || a > 0xFFFFFFFF) return { error: "format" };
                 if (minAddr < 0 || a < minAddr) minAddr = a;
                 if (a > maxAddr) maxAddr = a;
             }
             count += len;
-        } else if (type == 1) {
-            break;
-        } else if (type == 2) {
+        } else if (type == 0x01) {
+            // Intel HEX EOF is a zero-length record at address zero.
+            if (len != 0 || addr != 0) return { error: "format" };
+            eofSeen = true;
+        } else if (type == 0x02) {
             if (len != 2) return { error: "format" };
             base = (bytes[4] * 256 + bytes[5]) * 16;
-        } else if (type == 4) {
+        } else if (type == 0x03) {
+            if (len != 4 || addr != 0) return { error: "format" };
+        } else if (type == 0x04) {
             if (len != 2) return { error: "format" };
             base = (bytes[4] * 256 + bytes[5]) * 65536;
+        } else if (type == 0x05) {
+            if (len != 4 || addr != 0) return { error: "format" };
+        } else {
+            // Reject undefined record types instead of silently ignoring them.
+            return { error: "format" };
         }
-        // type 5 (start address) and others are ignored
     }
 
-    if (count == 0) return { error: "empty" };
+    if (!eofSeen) return { error: "format" };
+    if (count == 0 || minAddr < 0 || maxAddr < 0) return { error: "empty" };
     return { bytes: count, minAddr: minAddr, maxAddr: maxAddr };
 }
 
@@ -470,9 +487,9 @@ function updateHexInfo()
 
     if (flash > 0 && end > flash) {
         setStatus(msg + " - " + qsTr("HEX does not fit into MCU flash"), true);
-    } else if (flash > 0 && end > flash - 512) {
-        setStatus(msg + " - " + qsTr("Warning: HEX reaches the bootloader area"), true);
     } else {
+        // Bootloader placement/size varies by MCU, board and bootloader build.
+        // Only report what is actually known: the image must fit in Flash.
         setStatus(msg, false);
     }
 }
@@ -615,10 +632,6 @@ function onFlash()
     if (flash > 0 && info.maxAddr + 1 > flash) {
         setStatus(qsTr("HEX does not fit into MCU flash"), true); return;
     }
-    if (flash > 0 && info.maxAddr + 1 > flash - 512) {
-        setStatus(qsTr("Warning: HEX reaches the bootloader area"), true);
-    }
-
     var avr = detectAvrdude(true);
     if (!avr) {
         setStatus(qsTr("avrdude not found"), true);
@@ -729,15 +742,51 @@ function onCancel()
     if (!procRunning || !proc || procCanceled) return;
     procCanceled = true;
     appendLog(qsTr("Canceling..."));
+    appendLog("Warning / Внимание: canceling during programming may leave firmware incomplete / отмена во время записи может оставить прошивку неполной; flash again to recover / для восстановления запишите прошивку заново.");
+
+    // Ask avrdude to exit normally first. A hard kill is delayed so the tool
+    // can close its serial port and clean up; firmware may still be partial.
+    try { if (watchdogTimer) watchdogTimer.stop(); } catch (e) {}
+    try { if (startCheckTimer) startCheckTimer.stop(); } catch (e) {}
     try { proc.terminate(); } catch (e) {}
-    try { proc.kill(); } catch (e) {}
-    try {
-        var pid = Number(proc.processId());
-        if (pid > 0) {
-            if (WIN) QProcess.execute("taskkill", ["/F", "/T", "/PID", String(pid)]);
-            else QProcess.execute("kill", ["-9", String(pid)]);
-        }
-    } catch (e) {}
+
+    if (cancelKillTimer) { try { cancelKillTimer.stop(); } catch (e) {} }
+    cancelKillTimer = new QTimer();
+    cancelKillTimer.singleShot = true;
+    cancelKillTimer.timeout.connect(function () {
+        if (!procRunning || !proc || !procCanceled) return;
+        var running = true;
+        try {
+            var st = Number(proc.state());
+            if (st === 0) running = false;
+        } catch (e) {}
+        if (!running) return;
+        try { proc.kill(); } catch (e) {}
+
+        // Last-resort tree kill only if QProcess still hasn't exited after
+        // kill(). This avoids the old immediate terminate+kill sequence.
+        if (cancelFallbackTimer) { try { cancelFallbackTimer.stop(); } catch (e) {} }
+        cancelFallbackTimer = new QTimer();
+        cancelFallbackTimer.singleShot = true;
+        cancelFallbackTimer.timeout.connect(function () {
+            if (!procRunning || !proc || !procCanceled) return;
+            var stillRunning = true;
+            try {
+                var stateValue = Number(proc.state());
+                if (stateValue === 0) stillRunning = false;
+            } catch (e) {}
+            if (!stillRunning) return;
+            try {
+                var pid = Number(proc.processId());
+                if (pid > 0) {
+                    if (WIN) QProcess.execute("taskkill", ["/F", "/T", "/PID", String(pid)]);
+                    else QProcess.execute("kill", ["-9", String(pid)]);
+                }
+            } catch (e) {}
+        });
+        cancelFallbackTimer.start(800);
+    });
+    cancelKillTimer.start(1200);
 }
 
 function onProcError(err)
@@ -842,14 +891,17 @@ function onProcFinished(exitCode)
 
     setBusy(false);
 
-    if (Number(exitCode) == 0) {
+    if (procCanceled) {
+        // A process can exit with code 0 after receiving a termination request;
+        // cancellation must never be reported as a successful flash.
+        setStatus(qsTr("Canceled"), true);
+        appendLog(qsTr("Canceled"));
+        appendLog("Firmware contents may be incomplete / прошивка может быть неполной; run Flash again to recover / для восстановления запишите прошивку заново.");
+    } else if (Number(exitCode) == 0) {
         setProgress(100);
         setStatus(qsTr("Done! Firmware flashed successfully"), false);
         appendLog(qsTr("avrdude finished OK"));
         appendLog(qsTr("You can reconnect to the board in Candle now"));
-    } else if (procCanceled) {
-        setStatus(qsTr("Canceled"), true);
-        appendLog(qsTr("Canceled"));
     } else {
         setStatus(qsTr("Flashing failed") + " (exit " + Number(exitCode) + ")", true);
         setLogVisible(true);
@@ -891,6 +943,14 @@ function cleanupTimers()
     if (watchdogTimer) {
         try { watchdogTimer.stop(); } catch (e) {}
         watchdogTimer = null;
+    }
+    if (cancelKillTimer) {
+        try { cancelKillTimer.stop(); } catch (e) {}
+        cancelKillTimer = null;
+    }
+    if (cancelFallbackTimer) {
+        try { cancelFallbackTimer.stop(); } catch (e) {}
+        cancelFallbackTimer = null;
     }
 }
 

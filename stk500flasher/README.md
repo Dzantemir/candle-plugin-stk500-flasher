@@ -32,6 +32,17 @@ with JS plugin support (the `candleplugins` folder).
 
 ---
 
+## What's new in version 2.5
+
+1. Intel HEX validation now requires a valid EOF record, checks exact hexadecimal
+   characters and record lengths, validates supported record types, and rejects
+   data after EOF.
+2. Removed the universal 512-byte bootloader warning: bootloader size/location
+   varies by board and bootloader build. The plugin still rejects images that
+   exceed the selected MCU's known Flash capacity.
+3. Cancellation now requests graceful process termination before forcing it,
+   and logs a warning that interrupted programming can leave firmware incomplete.
+
 ## What's new in version 2.4
 
 1. **Unified localization through the standard Candle mechanism** — the
