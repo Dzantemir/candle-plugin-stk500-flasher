@@ -7,6 +7,9 @@ A plugin that adds a panel to Candle for flashing control boards
 as in the Arduino IDE; the programmer selection was removed from the UI as
 redundant).
 
+<img width="235" height="257" alt="{B4CD80D5-6A16-400B-BECB-F0249973D66D}" src="https://github.com/user-attachments/assets/0bd4177b-6c4e-4e86-b1c2-875c649dcf54" />
+
+
 Tested with Candle 11.x (current master branch). Requires a Candle build
 with JS plugin support (the `candleplugins` folder).
 
