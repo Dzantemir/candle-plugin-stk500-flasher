@@ -58,7 +58,7 @@
      <item row="0" column="0">
       <widget class="QLabel" name="lblPort">
        <property name="text">
-        <string>Port</string>
+        <string>Port:</string>
        </property>
       </widget>
      </item>
@@ -110,7 +110,7 @@
      <item row="1" column="0">
       <widget class="QLabel" name="lblBaud">
        <property name="text">
-        <string>Baud</string>
+        <string>Baud:</string>
        </property>
       </widget>
      </item>
@@ -133,7 +133,7 @@
      <item row="2" column="0">
       <widget class="QLabel" name="lblMcu">
        <property name="text">
-        <string>MCU</string>
+        <string>MCU:</string>
        </property>
       </widget>
      </item>
@@ -153,7 +153,7 @@
      <item row="3" column="0">
       <widget class="QLabel" name="lblHex">
        <property name="text">
-        <string>HEX</string>
+        <string>HEX:</string>
        </property>
       </widget>
      </item>
@@ -202,7 +202,7 @@
      <item row="4" column="0">
       <widget class="QLabel" name="lblOptions">
        <property name="text">
-        <string>Opt.</string>
+        <string>Opt.:</string>
        </property>
        <property name="toolTip">
         <string>Additional avrdude options, space separated (e.g. -D or -V)</string>

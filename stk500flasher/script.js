@@ -11,6 +11,30 @@
 //     Arduino IDE, PlatformIO, system PATH
 //   - Windows avrdude 8.0 can be bundled in the "avrdude" subfolder
 //
+// v2.4 (unified localization - the official Candle mechanism):
+//   - the custom STR_EN/STR_RU dictionaries + RU flag + T() + the runtime
+//     localizePanel()/localizeSettings() rewrites are GONE.
+//   - ALL strings go through ONE translation file translation_<lang>.qm
+//     which Candle installs before loading script.js:
+//       * static .ui strings (labels, tooltips, placeholders, window titles)
+//         are translated by QUiLoader itself, context = <class> of the .ui;
+//       * runtime strings use qsTr() (empty translation context) - exactly
+//         like the official usercommands plugin.
+//   - result: the UI is either fully English or fully Russian (same label
+//     style in both languages), never a mix of translated and raw strings.
+//
+// v2.4 (unified localization - the official Candle mechanism):
+//   - the custom STR_EN/STR_RU dictionaries + RU flag + T() + the runtime
+//     localizePanel()/localizeSettings() rewrites are GONE.
+//   - ALL strings go through ONE translation file translation_<lang>.qm
+//     which Candle installs before loading script.js:
+//       * static .ui strings (labels, tooltips, placeholders, window titles)
+//         are translated by QUiLoader itself, context = <class> of the .ui;
+//       * runtime strings use qsTr() (empty translation context) - exactly
+//         like the official usercommands plugin.
+//   - result: the UI is either fully English or fully Russian (same label
+//     style in both languages), never a mix of translated and raw strings.
+//
 // v2.3: single dual-action button - "Flash" when idle, "Stop" while
 // flashing. The former separate Flash/Stop buttons are merged into one
 // (cmdFlash); the button is never disabled, it switches its label/tooltip.
@@ -30,6 +54,20 @@ script.importExtension("qt.core");
 script.importExtension("qt.gui");
 script.importExtension("qt.widgets");
 script.importExtension("qt.uitools");
+
+// Candle installs translator functions (qsTr/qsTranslate/...) into the
+// engine via installTranslatorFunctions() before evaluating this script.
+// Older builds may lack them - fall back to the English source text.
+if (typeof qsTr !== "function") {
+    qsTr = function(sourceText) { return String(sourceText); };
+}
+
+// Candle installs translator functions (qsTr/qsTranslate/...) into the
+// engine via installTranslatorFunctions() before evaluating this script.
+// Older builds may lack them - fall back to the English source text.
+if (typeof qsTr !== "function") {
+    qsTr = function(sourceText) { return String(sourceText); };
+}
 
 // ------------------------------------------------------------------ vars
 
@@ -94,119 +132,6 @@ function bytesToString(b)
         if (TEXTCODEC) return sstr(TEXTCODEC.toUnicode(b));
     } catch (e) {}
     return "";
-}
-
-// ------------------------------------------------------------------ i18n
-
-var STR_EN = {
-    "port": "Port", "baud": "Baud", "mcu": "MCU",
-    "hex": "HEX", "options": "Opt.",
-    "flash": "Flash", "cancel": "Stop", "log": "Log",
-    "flashTooltip": "Flash the firmware onto the board. While flashing, this button turns into Stop.",
-    "stopTooltip": "Stop the running flashing process",
-    "refreshTooltip": "Rescan available serial ports",
-    "refresh": "Refresh",
-    "logTooltip": "Show/hide avrdude output log",
-    "optionsTooltip": "Additional avrdude options, space separated (e.g. -D or -V)",
-    "noPort": "Select a serial port",
-    "noMcu": "Select a controller (MCU)",
-    "noHex": "Select a HEX file",
-    "hexNotFound": "HEX file not found",
-    "hexTooBig": "HEX does not fit into MCU flash",
-    "bootloaderWarn": "Warning: HEX reaches the bootloader area",
-    "noAvrdude": "avrdude not found",
-    "noAvrdudeHelp": "Select the avrdude executable in the plugin settings (Settings - STK500 Flasher). Windows: unpack avrdude into the 'avrdude' subfolder of this plugin; Linux: install avrdude (sudo apt install avrdude); macOS: brew install avrdude",
-    "flashing": "Flashing...",
-    "done": "Done! Firmware flashed successfully",
-    "doneMsg": "avrdude finished OK",
-    "reconnectHint": "You can reconnect to the board in Candle now",
-    "failed": "Flashing failed",
-    "failedHelp": "Check: 1) Candle is disconnected from the board, 2) port/baud are correct, 3) MCU is correct, 4) the board is in the bootloader (press RESET right after clicking Flash if auto-reset is disabled)",
-    "portBusyHint": "Port is busy or access denied - disconnect in Candle first (Connection - Disconnect)",
-    "connectedWarn": "Candle is connected to this port - flashing will most likely fail. Disconnect in Candle first.",
-    "signatureHint": "Device signature mismatch: wrong MCU selected. Check the MCU field (can be forced with -F in options, use with care)",
-    "canceled": "Canceled",
-    "canceling": "Canceling...",
-    "timeout": "Timeout - process did not finish",
-    "startFailed": "Could not start avrdude",
-    "procError": "Process error",
-    "selectHex": "Select firmware HEX file",
-    "hexFilter": "HEX files (*.hex *.ihx *.hex32);;All files (*)",
-    "detected": "Detected",
-    "none": "not found",
-    "avrdudeLabel": "avrdude executable",
-    "confLabel": "avrdude.conf (optional)",
-    "emptyForAuto": "auto",
-    "hexSpan": "HEX image",
-    "bytes": "bytes",
-    "openAvrdude": "Select avrdude executable",
-    "openConf": "Select avrdude.conf",
-    "exeFilter": "Executables (avrdude* avrdude.exe);;All files (*)",
-    "confFilter": "avrdude.conf (avrdude.conf*);;All files (*)",
-    "invalidHex": "Invalid HEX file",
-    "settingsHelp": "Leave empty to search avrdude automatically: plugin folder (avrdude subfolder), application folder, Arduino IDE, PlatformIO, system PATH. Windows: avrdude can be bundled with this plugin. Linux/macOS: install avrdude or select your own binary here."
-};
-
-var STR_RU = {
-    "port": "Порт", "baud": "Бод", "mcu": "МК",
-    "hex": "HEX", "options": "Опции",
-    "flash": "Прошить", "cancel": "Стоп", "log": "Лог",
-    "flashTooltip": "Записать прошивку на плату. Во время прошивки кнопка превращается в «Стоп».",
-    "stopTooltip": "Остановить текущую прошивку",
-    "refreshTooltip": "Обновить список портов",
-    "refresh": "Обновить",
-    "logTooltip": "Показать/скрыть журнал avrdude",
-    "optionsTooltip": "Дополнительные опции avrdude через пробел (например -D или -V)",
-    "noPort": "Выберите последовательный порт",
-    "noMcu": "Выберите контроллер (MCU)",
-    "noHex": "Выберите HEX-файл",
-    "hexNotFound": "HEX-файл не найден",
-    "hexTooBig": "HEX не помещается во flash-память контроллера",
-    "bootloaderWarn": "Внимание: HEX доходит до области загрузчика",
-    "noAvrdude": "avrdude не найден",
-    "noAvrdudeHelp": "Укажите файл avrdude в настройках плагина (Настройки - STK500 Flasher). Windows: распакуйте avrdude в подпапку 'avrdude' этого плагина; Linux: установите avrdude (sudo apt install avrdude); macOS: brew install avrdude",
-    "flashing": "Прошивка...",
-    "done": "Готово! Прошивка успешно записана",
-    "doneMsg": "avrdude завершился без ошибок",
-    "reconnectHint": "Теперь можно снова подключиться к плате в Candle",
-    "failed": "Не удалось прошить",
-    "failedHelp": "Проверьте: 1) Candle отключён от платы, 2) правильность порта и скорости, 3) правильность контроллера, 4) плата находится в загрузчике (нажмите RESET сразу после нажатия «Прошить», если авто-сброс на плате отключён)",
-    "portBusyHint": "Порт занят или нет доступа — сначала отключитесь в Candle (Соединение - Отключиться)",
-    "connectedWarn": "Candle подключён к этому порту — прошивка скорее всего не удастся. Сначала отключитесь в Candle.",
-    "signatureHint": "Сигнатура устройства не совпала: выбран неверный контроллер. Проверьте поле «Контроллер» (можно принудительно продолжить, добавив -F в опции — осторожно)",
-    "canceled": "Отменено",
-    "canceling": "Отмена...",
-    "timeout": "Таймаут — процесс не завершился",
-    "startFailed": "Не удалось запустить avrdude",
-    "procError": "Ошибка процесса",
-    "selectHex": "Выберите HEX-файл прошивки",
-    "hexFilter": "HEX-файлы (*.hex *.ihx *.hex32);;Все файлы (*)",
-    "detected": "Определено",
-    "none": "не найден",
-    "avrdudeLabel": "Программа avrdude",
-    "confLabel": "avrdude.conf (необязательно)",
-    "emptyForAuto": "авто",
-    "hexSpan": "Образ HEX",
-    "bytes": "байт",
-    "openAvrdude": "Выберите файл avrdude",
-    "openConf": "Выберите avrdude.conf",
-    "exeFilter": "Исполняемые файлы (avrdude* avrdude.exe);;Все файлы (*)",
-    "confFilter": "avrdude.conf (avrdude.conf*);;Все файлы (*)",
-    "invalidHex": "Некорректный HEX-файл",
-    "settingsHelp": "Оставьте пустым для автоматического поиска avrdude: папка плагина (подпапка avrdude), папка программы, Arduino IDE, PlatformIO, системный PATH. Windows: avrdude можно положить в комплект плагина. Linux/macOS: установите avrdude или выберите свой файл здесь."
-};
-
-var RU = false;
-try {
-    var lang = sstr(app.settings.language).toLowerCase();
-    RU = (lang == "ru" || lang.indexOf("ru_") === 0 || lang.indexOf("ru-") === 0);
-} catch (e) {}
-
-function T(key)
-{
-    if (RU && STR_RU[key]) return STR_RU[key];
-    if (STR_EN[key]) return STR_EN[key];
-    return key;
 }
 
 // ------------------------------------------------------------------ helpers
@@ -323,7 +248,8 @@ function createSettingsWidget()
 
 function setupPanel()
 {
-    if (RU) localizePanel();
+    // Panel labels/tooltips/placeholders are translated by QUiLoader from
+    // translation_<lang>.qm (context Stk500Flasher) - no runtime rewrites.
 
     // MCUs
     var mcuItems = [];
@@ -371,25 +297,6 @@ function setupPanel()
     uiPanel.btnLog["toggled(bool)"].connect(function (on) { setLogVisible(on); });
 
     updateHexInfo();
-}
-
-function localizePanel()
-{
-    // NOTE: property assignment only - setText()/setToolTip() methods are
-    // missing for buttons in Candle's QtScript bindings!
-    uiPanel.lblPort.text = T("port") + ":";
-    uiPanel.lblBaud.text = T("baud") + ":";
-    uiPanel.lblMcu.text = T("mcu") + ":";
-    uiPanel.lblHex.text = T("hex") + ":";
-    uiPanel.lblOptions.text = T("options") + ":";
-    uiPanel.btnRefresh.toolTip = T("refreshTooltip");
-    uiPanel.btnRefresh.text = T("refresh");
-    uiPanel.btnBrowse.toolTip = T("selectHex");
-    uiPanel.cmdFlash.text = T("flash");
-    uiPanel.cmdFlash.toolTip = T("flashTooltip");
-    uiPanel.btnLog.text = T("log");
-    uiPanel.btnLog.toolTip = T("logTooltip");
-    uiPanel.lblOptions.toolTip = T("optionsTooltip");
 }
 
 function setComboText(cmb, text)
@@ -529,10 +436,10 @@ function parseHex(path)
 
 function hexErrorText(e)
 {
-    if (e == "read") return T("hexNotFound");
-    if (e == "checksum") return "checksum";
-    if (e == "empty") return "no data";
-    return "format";
+    if (e == "read") return qsTr("HEX file not found");
+    if (e == "checksum") return qsTr("checksum");
+    if (e == "empty") return qsTr("no data");
+    return qsTr("format");
 }
 
 function updateHexInfo()
@@ -551,20 +458,20 @@ function updateHexInfo()
     lastParsedInfo = parseHex(path);
 
     if (lastParsedInfo.error) {
-        setStatus(T("invalidHex") + " (" + hexErrorText(lastParsedInfo.error) + ")", true);
+        setStatus(qsTr("Invalid HEX file") + " (" + hexErrorText(lastParsedInfo.error) + ")", true);
         return;
     }
 
     var flash = MCU_FLASH[currentMcu()] || 0;
     var end = lastParsedInfo.maxAddr + 1;
-    var msg = T("hexSpan") + ": " + lastParsedInfo.bytes + " " + T("bytes")
+    var msg = qsTr("HEX image") + ": " + lastParsedInfo.bytes + " " + qsTr("bytes")
             + " [0x" + lastParsedInfo.minAddr.toString(16)
             + " - 0x" + end.toString(16) + "]";
 
     if (flash > 0 && end > flash) {
-        setStatus(msg + " - " + T("hexTooBig"), true);
+        setStatus(msg + " - " + qsTr("HEX does not fit into MCU flash"), true);
     } else if (flash > 0 && end > flash - 512) {
-        setStatus(msg + " - " + T("bootloaderWarn"), true);
+        setStatus(msg + " - " + qsTr("Warning: HEX reaches the bootloader area"), true);
     } else {
         setStatus(msg, false);
     }
@@ -611,7 +518,7 @@ function detectAvrdude(logIt)
             var mconf = trimStr(sstr(storage.value("avrdudeConf", "")));
             return { exe: custom, conf: (mconf.length > 0 && fileExists(mconf)) ? mconf : findConfFor(custom) };
         }
-        if (logIt) appendLog(T("noAvrdude") + ": " + custom);
+        if (logIt) appendLog(qsTr("avrdude not found") + ": " + custom);
         return null;
     }
 
@@ -673,8 +580,8 @@ function onFlashStop()
 
 function onBrowse()
 {
-    var path = QFileDialog.getOpenFileName(app.window, T("selectHex"),
-                                            sstr(uiPanel.txtHex.text), T("hexFilter"));
+    var path = QFileDialog.getOpenFileName(app.window, qsTr("Select firmware HEX file"),
+                                            sstr(uiPanel.txtHex.text), qsTr("HEX files (*.hex *.ihx *.hex32);;All files (*)"));
     path = sstr(path);
     if (path.length > 0) {
         uiPanel.txtHex.setText(path);
@@ -694,29 +601,29 @@ function onFlash()
     var extra = trimStr(sstr(uiPanel.txtExtra.text));
 
     if (port.length == 0) {
-        setStatus(T("noPort"), true); return;
+        setStatus(qsTr("Select a serial port"), true); return;
     }
-    if (mcu.length == 0) { setStatus(T("noMcu"), true); return; }
-    if (hex.length == 0) { setStatus(T("noHex"), true); return; }
-    if (!fileExists(hex)) { setStatus(T("hexNotFound"), true); return; }
+    if (mcu.length == 0) { setStatus(qsTr("Select a controller (MCU)"), true); return; }
+    if (hex.length == 0) { setStatus(qsTr("Select a HEX file"), true); return; }
+    if (!fileExists(hex)) { setStatus(qsTr("HEX file not found"), true); return; }
 
     // HEX sanity check
     var info = parseHex(hex);
-    if (info.error) { setStatus(T("invalidHex") + " (" + hexErrorText(info.error) + ")", true); return; }
+    if (info.error) { setStatus(qsTr("Invalid HEX file") + " (" + hexErrorText(info.error) + ")", true); return; }
 
     var flash = MCU_FLASH[mcu] || 0;
     if (flash > 0 && info.maxAddr + 1 > flash) {
-        setStatus(T("hexTooBig"), true); return;
+        setStatus(qsTr("HEX does not fit into MCU flash"), true); return;
     }
     if (flash > 0 && info.maxAddr + 1 > flash - 512) {
-        setStatus(T("bootloaderWarn"), true);
+        setStatus(qsTr("Warning: HEX reaches the bootloader area"), true);
     }
 
     var avr = detectAvrdude(true);
     if (!avr) {
-        setStatus(T("noAvrdude"), true);
+        setStatus(qsTr("avrdude not found"), true);
         setLogVisible(true);
-        appendLog(T("noAvrdudeHelp"));
+        appendLog(qsTr("Select the avrdude executable in the plugin settings (Settings - STK500 Flasher). Windows: unpack avrdude into the 'avrdude' subfolder of this plugin; Linux: install avrdude (sudo apt install avrdude); macOS: brew install avrdude"));
         return;
     }
 
@@ -724,7 +631,7 @@ function onFlash()
     try {
         var devState = Number(app.device.state);
         if (devState != -1 && port.length > 0 && port == candlePort()) {
-            appendLog(T("connectedWarn"));
+            appendLog(qsTr("Candle is connected to this port - flashing will most likely fail. Disconnect in Candle first."));
         }
     } catch (e) {}
 
@@ -754,9 +661,9 @@ function onFlash()
     // Log header
     setLogVisible(true);
     appendLog("--------------------------------------------------");
-    appendLog(T("flashing") + " " + mcu + " @ " + port
+    appendLog(qsTr("Flashing...") + " " + mcu + " @ " + port
             + " (" + PROGRAMMER + (isNaN(b) ? "" : ", " + b) + ")");
-    appendLog(T("hexSpan") + ": " + info.bytes + " " + T("bytes"));
+    appendLog(qsTr("HEX image") + ": " + info.bytes + " " + qsTr("bytes"));
     appendLog("> " + avr.exe + " " + args.join(" "));
 
     // Run avrdude.
@@ -787,7 +694,7 @@ function onFlash()
     procRunning = true;
     setBusy(true);
     setProgress(0);
-    setStatus(T("flashing"), false);
+    setStatus(qsTr("Flashing..."), false);
 
     // Detect "failed to start" (avrdude missing / not executable)
     startCheckTimer = new QTimer();
@@ -810,7 +717,7 @@ function onFlash()
     watchdogTimer.singleShot = true;
     watchdogTimer.timeout.connect(function () {
         if (procRunning) {
-            appendLog(T("timeout"));
+            appendLog(qsTr("Timeout - process did not finish"));
             onCancel();
         }
     });
@@ -821,7 +728,7 @@ function onCancel()
 {
     if (!procRunning || !proc || procCanceled) return;
     procCanceled = true;
-    appendLog(T("canceling"));
+    appendLog(qsTr("Canceling..."));
     try { proc.terminate(); } catch (e) {}
     try { proc.kill(); } catch (e) {}
     try {
@@ -841,7 +748,7 @@ function onProcError(err)
     if (s.indexOf("FailedToStart") >= 0) {
         onProcFailedToStart();
     } else {
-        appendLog(T("procError") + ": " + s);
+        appendLog(qsTr("Process error") + ": " + s);
     }
 }
 
@@ -851,10 +758,10 @@ function onProcFailedToStart()
     procRunning = false;
     cleanupTimers();
     setBusy(false);
-    setStatus(T("startFailed"), true);
+    setStatus(qsTr("Could not start avrdude"), true);
     setLogVisible(true);
-    appendLog(T("startFailed") + ": " + (proc ? sstr(proc.program()) : "avrdude"));
-    appendLog(T("noAvrdudeHelp"));
+    appendLog(qsTr("Could not start avrdude") + ": " + (proc ? sstr(proc.program()) : "avrdude"));
+    appendLog(qsTr("Select the avrdude executable in the plugin settings (Settings - STK500 Flasher). Windows: unpack avrdude into the 'avrdude' subfolder of this plugin; Linux: install avrdude (sudo apt install avrdude); macOS: brew install avrdude"));
     proc = null;
     procCanceled = false;
 }
@@ -937,16 +844,16 @@ function onProcFinished(exitCode)
 
     if (Number(exitCode) == 0) {
         setProgress(100);
-        setStatus(T("done"), false);
-        appendLog(T("doneMsg"));
-        appendLog(T("reconnectHint"));
+        setStatus(qsTr("Done! Firmware flashed successfully"), false);
+        appendLog(qsTr("avrdude finished OK"));
+        appendLog(qsTr("You can reconnect to the board in Candle now"));
     } else if (procCanceled) {
-        setStatus(T("canceled"), true);
-        appendLog(T("canceled"));
+        setStatus(qsTr("Canceled"), true);
+        appendLog(qsTr("Canceled"));
     } else {
-        setStatus(T("failed") + " (exit " + Number(exitCode) + ")", true);
+        setStatus(qsTr("Flashing failed") + " (exit " + Number(exitCode) + ")", true);
         setLogVisible(true);
-        appendLog(T("failedHelp"));
+        appendLog(qsTr("Check: 1) Candle is disconnected from the board, 2) port/baud are correct, 3) MCU is correct, 4) the board is in the bootloader (press RESET right after clicking Flash if auto-reset is disabled)"));
         analyzeOutputHints();
     }
 
@@ -958,10 +865,10 @@ function analyzeOutputHints()
 {
     var out = procOutAll;
     if (/signature mismatch|invalid device signature|expected signature/i.test(out)) {
-        appendLog(T("signatureHint"));
+        appendLog(qsTr("Device signature mismatch: wrong MCU selected. Check the MCU field (can be forced with -F in options, use with care)"));
     }
     if (/can'?t open|access is denied|permission denied|device busy|resource busy/i.test(out)) {
-        appendLog(T("portBusyHint"));
+        appendLog(qsTr("Port is busy or access denied - disconnect in Candle first (Connection - Disconnect)"));
     }
 }
 
@@ -992,8 +899,8 @@ function setBusy(busy)
     // v2.3: the single action button is NEVER disabled - it switches its
     // label and tooltip between "Flash" (idle) and "Stop" (flashing), so
     // the same click that started flashing can also abort it.
-    uiPanel.cmdFlash.text = busy ? T("cancel") : T("flash");
-    uiPanel.cmdFlash.toolTip = busy ? T("stopTooltip") : T("flashTooltip");
+    uiPanel.cmdFlash.text = busy ? qsTr("Stop") : qsTr("Flash");
+    uiPanel.cmdFlash.toolTip = busy ? qsTr("Stop the running flashing process") : qsTr("Flash the firmware. While flashing, this button turns into Stop.");
     uiPanel.cmbPort.setEnabled(!busy);
     uiPanel.cmbBaud.setEnabled(!busy);
     uiPanel.cmbMcu.setEnabled(!busy);
@@ -1031,39 +938,29 @@ function setProgress(v)
 
 function setupSettings()
 {
-    if (RU) localizeSettings();
+    // Settings labels/placeholders are translated by QUiLoader from
+    // translation_<lang>.qm (context Stk500FlasherSettings).
 
     // show the detected engine right away (also refreshed when the
     // settings dialog is about to open)
     try {
         var avr = detectAvrdude(false);
-        var label = (avr && avr.exe ? avr.exe : T("none"));
+        var label = (avr && avr.exe ? avr.exe : qsTr("not found"));
         if (avr && avr.fromPath && avr.exe == "avrdude") label += " (PATH)";
         uiSettings.lblDetected.text = label;
     } catch (e) {}
 
     uiSettings.btnAvrdudeBrowse.clicked.connect(function () {
-        var path = QFileDialog.getOpenFileName(app.window, T("openAvrdude"), "", T("exeFilter"));
+        var path = QFileDialog.getOpenFileName(app.window, qsTr("Select avrdude executable"), "", qsTr("Executables (avrdude* avrdude.exe);;All files (*)"));
         path = sstr(path);
         if (path.length > 0) uiSettings.txtAvrdude.setText(path);
     });
 
     uiSettings.btnConfBrowse.clicked.connect(function () {
-        var path = QFileDialog.getOpenFileName(app.window, T("openConf"), "", T("confFilter"));
+        var path = QFileDialog.getOpenFileName(app.window, qsTr("Select avrdude.conf"), "", qsTr("avrdude.conf (avrdude.conf*);;All files (*)"));
         path = sstr(path);
         if (path.length > 0) uiSettings.txtConf.setText(path);
     });
-}
-
-function localizeSettings()
-{
-    // property assignment only (see note in localizePanel)
-    uiSettings.lblAvrdude.text = T("avrdudeLabel");
-    uiSettings.lblConf.text = T("confLabel");
-    uiSettings.lblDetectedTitle.text = T("detected") + ":";
-    uiSettings.lblHelp.text = T("settingsHelp");
-    uiSettings.txtAvrdude.placeholderText = T("emptyForAuto");
-    uiSettings.txtConf.placeholderText = T("emptyForAuto");
 }
 
 function onSettingsAboutToShow()
@@ -1072,7 +969,7 @@ function onSettingsAboutToShow()
     uiSettings.txtAvrdude.setText(sstr(storage.value("avrdudePath", "")));
     uiSettings.txtConf.setText(sstr(storage.value("avrdudeConf", "")));
     var avr = detectAvrdude(false);
-    var label = (avr && avr.exe ? avr.exe : T("none"));
+    var label = (avr && avr.exe ? avr.exe : qsTr("not found"));
     if (avr && avr.fromPath && avr.exe == "avrdude") label += " (PATH)";
     uiSettings.lblDetected.text = label;
 }
